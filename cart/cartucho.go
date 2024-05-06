@@ -2,9 +2,9 @@ package cart
 
 import (
 	"fmt"
-	"io/ioutil"
-	"strings"
 	"log"
+	"os"
+	"strings"
 )
 
 type Mode int
@@ -54,11 +54,11 @@ func (c *Cart) GetMode() Mode {
 	return c.mode
 }
 
-func (c *Cart) GetName() string{
-	if c.title == ""{
-		for i := uint16(0x0134); i < 0x142; i++{
+func (c *Cart) GetName() string {
+	if c.title == "" {
+		for i := uint16(0x0134); i < 0x142; i++ {
 			chr := c.Read(i)
-			if chr != 0x00{
+			if chr != 0x00 {
 				c.title += string(chr)
 			}
 		}
@@ -125,13 +125,12 @@ func NewCart(rom []byte, filename string) *Cart {
 	log.Printf("Cart type: %#02x (%v)", mbcFlag, cartType)
 	fmt.Scanln()
 
-	switch mbcFlag {
-	case 0x3, 0x6, 0x9, 0xD, 0xF, 0x10, 0x13, 0x17, 0x1B, 0x1E, 0xFF:
-		//cartridge.initGameSaves()
-	}
+	// switch mbcFlag {
+	// case 0x3, 0x6, 0x9, 0xD, 0xF, 0x10, 0x13, 0x17, 0x1B, 0x1E, 0xFF:
+	// 	cartridge.initGameSaves()
+	// }
 	return &cartridge
 }
-
 
 func loadROMData(filename string) ([]byte, error) {
 	var data []byte
@@ -140,7 +139,7 @@ func loadROMData(filename string) ([]byte, error) {
 	// }
 	// Load the file as a rom
 	var err error
-	data, err = ioutil.ReadFile(filename)
+	data, err = os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
