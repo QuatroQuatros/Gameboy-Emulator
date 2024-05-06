@@ -176,6 +176,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.DAA()
 	case 0x28:
 		z.JR_Z_e()
+	case 0x29:
+		z.ADD_HL_HL()
 	case 0x2A:
 		z.LDI_A_HL()
 	case 0x2C:
@@ -192,6 +194,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.LD_HL_dec_A()
 	case 0x34:
 		z.INC_HL_addr()
+	case 0x35:
+		z.DEC_HL_addr()
 	case 0x36:
 		z.LD_HL_d8()
 	case 0x3C:
@@ -216,6 +220,10 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.LD_E_HL()
 	case 0x5F:
 		z.LD_E_A()
+	case 0x6E:
+		z.LD_L_HL()
+	case 0x6F:
+		z.LD_L_A()
 	case 0x70:
 		z.LD_HL_B()
 	case 0x71:
@@ -256,6 +264,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.OR_B()
 	case 0xB1:
 		z.OR_C()
+	case 0xB6:
+		z.OR_HL_addr()
 	case 0xB7:
 		z.OR_A()
 	case 0xC0:
@@ -280,6 +290,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.CALL_nn()
 	case 0xCE:
 		z.ADC_A_d8()
+	case 0xD0:
+		z.RET_NC()
 	case 0xD1:
 		z.POP_DE()
 	case 0xD5:
