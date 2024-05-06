@@ -3,7 +3,6 @@ package gb
 import (
 	"fmt"
 	"gameboy/bits"
-	"os"
 	_ "sort"
 )
 
@@ -502,7 +501,20 @@ func (z *Z80) INC_L() {
 
 	z.PC++
 	z.M = 4
+}
 
+// 0x2D - DEC L
+func (z *Z80) DEC_L() {
+	z.L--
+	z.setHL()
+
+	z.Z = z.L == 0
+	z.N = true
+	z.HF = (z.L & 0x0F) == 0x0F
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
 }
 
 // 0x2F - CPL (Complement Accumulator)
@@ -607,6 +619,15 @@ func (z *Z80) LD_A_d8() {
 	z.M = 8
 }
 
+// 0x46 - LD B, (HL)
+func (z *Z80) LD_B_HL_addr() {
+	z.B = z.Memory.ReadByte(z.HL)
+	z.setBC()
+
+	z.PC++
+	z.M = 8
+}
+
 // 0x47 - LD B, A
 func (z *Z80) LD_B_A() {
 	z.B = z.A // Carrega o valor do registrador A no registrador B
@@ -615,6 +636,15 @@ func (z *Z80) LD_B_A() {
 	z.PC++
 	z.M = 4
 
+}
+
+// 0x4E - LD C, (HL)
+func (z *Z80) LD_C_HL_addr() {
+	z.C = z.Memory.ReadByte(z.HL)
+	z.setBC()
+
+	z.PC++
+	z.M = 8
 }
 
 // 0x4F - LD C, A
@@ -650,14 +680,14 @@ func (z *Z80) LD_E_HL() {
 	z.E = z.Memory.ReadByte(z.HL)
 	z.setDE()
 
+	z.PC++
+	z.M = 8
+
 	// Incrementar HL
 	// z.HL++
 
 	// z.H = uint8(z.HL >> 8)
 	// z.L = uint8(z.HL & 0xFF)
-
-	z.PC++
-	z.M = 8
 
 }
 
@@ -859,6 +889,20 @@ func (z *Z80) OR_C() {
 
 	z.PC++
 	z.M = 4
+}
+
+// 0xB7 - OR A
+func (z *Z80) OR_A() {
+	z.A |= z.A
+
+	z.Z = z.A == 0 // Z será verdadeiro se A for zero
+	z.N = false
+	z.HF = false
+	z.CF = false
+	z.setFlags()
+
+	z.PC++
+	z.M += 4
 }
 
 // 0xC0 - RET NZ (Return if Not Zero)
@@ -1308,6 +1352,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.LDI_A_HL()
 	case 0x2C:
 		z.INC_L()
+	case 0x2D:
+		z.DEC_L()
 	case 0x2F:
 		z.CPL()
 	case 0x31:
@@ -1324,8 +1370,12 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.DEC_A()
 	case 0x3E:
 		z.LD_A_d8()
+	case 0x46:
+		z.LD_B_HL_addr()
 	case 0x47:
 		z.LD_B_A()
+	case 0x4E:
+		z.LD_C_HL_addr()
 	case 0x4F:
 		z.LD_C_A()
 	case 0x56:
@@ -1368,6 +1418,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.OR_B()
 	case 0xB1:
 		z.OR_C()
+	case 0xB7:
+		z.OR_A()
 	case 0xC0:
 		z.RET_NZ()
 	case 0xC1:
@@ -1433,12 +1485,7 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 
 	default:
 		fmt.Printf("Opcode não suportado: 0x%X\n", opcode)
-		// fmt.Printf("Opcode não suportado: " , opcode)
-		_, err := fmt.Scanln()
-		if err != nil {
-			fmt.Println("Erro ao aguardar entrada:", err)
-			os.Exit(1)
-		}
+		fmt.Scanln()
 		z.PC++
 		z.M = 4
 	}
