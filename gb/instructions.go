@@ -2,7 +2,7 @@ package gb
 
 import "fmt"
 
-// 0X00
+// 0X00 - NOP
 func (z *Z80) NOP() {
 	z.PC++
 	z.M = 4
@@ -24,7 +24,7 @@ func (z *Z80) LD_BC_nn() {
 	z.M = 12
 }
 
-// 0x03 INC BC
+// 0x03 - INC BC
 func (z *Z80) INC_BC() {
 	z.BC++
 
@@ -33,6 +33,18 @@ func (z *Z80) INC_BC() {
 
 	z.PC++
 	z.M = 8
+}
+
+// 0x04 - INC B
+func (z *Z80) INC_B() {
+	z.B++
+	z.setBC()
+
+	z.updateFlagsInc(z.B)
+
+	z.PC++
+	z.M = 4
+
 }
 
 // 0x05 - DEC B
@@ -73,7 +85,7 @@ func (z *Z80) DEC_BC() {
 
 }
 
-// 0x0C
+// 0x0C - INC C
 func (z *Z80) INC_C() {
 	z.C++
 	z.setBC()
@@ -109,7 +121,6 @@ func (z *Z80) LD_C_d8() {
 
 	z.PC += 2
 	z.M = 8
-
 }
 
 // 0x11 - LD DE, nn
@@ -220,6 +231,31 @@ func (z *Z80) INC_E() {
 	z.M = 4
 }
 
+// 0x1D - DEC E
+func (z *Z80) DEC_E() {
+	z.E--
+	z.setDE()
+
+	z.Z = z.E == 0
+	z.N = true
+	z.HF = (z.E & 0x0F) == 0x0F
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
+}
+
+// 0x1E - LD E, d8
+func (z *Z80) LD_E_d8() {
+	immediate := z.Memory.ReadByte(z.PC + 1)
+
+	z.E = immediate
+	z.setDE()
+
+	z.PC += 2
+	z.M = 8
+}
+
 // 0x1F - RRA (Rotate Right through Carry A)
 func (z *Z80) RRA() {
 	var carry byte
@@ -240,7 +276,7 @@ func (z *Z80) RRA() {
 
 }
 
-// 0x20
+// 0x20 - Jump r8 if not zero (!Z)
 func (z *Z80) JR_nz_e() {
 	if !z.Z {
 		displacement := int8(z.readMemory(z.PC + 1))
@@ -370,7 +406,7 @@ func (z *Z80) DAA() {
 	z.M = 4
 }
 
-// 0x28
+// 0x28 - jump if zero
 func (z *Z80) JR_Z_e() {
 	displacement := int8(z.readMemory(z.PC + 1))
 
@@ -402,18 +438,6 @@ func (z *Z80) ADD_HL_HL() {
 	z.PC++
 	z.M = 8
 
-	fmt.Println("0x29")
-	opcode := z.readMemory(z.PC)
-	fmt.Println("\n================ Registros ================")
-	fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
-	fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
-	fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
-	fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
-	fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
-	fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
-	fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
-	fmt.Println("=============================================")
-	fmt.Scanln()
 }
 
 // 0x2A - LDI A, (HL)
@@ -538,19 +562,6 @@ func (z *Z80) DEC_HL_addr() {
 
 	z.PC++
 	z.M = 12
-
-	// fmt.Println("0x35")
-	// opcode := z.readMemory(z.PC)
-	// fmt.Println("\n================ Registros ================")
-	// fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
-	// fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
-	// fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
-	// fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
-	// fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
-	// fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
-	// fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
-	// fmt.Println("=============================================")
-	// fmt.Scanln()
 }
 
 // 0x36 - LD (HL), d8
@@ -591,7 +602,7 @@ func (z *Z80) DEC_A() {
 	z.M = 4
 }
 
-// 0x3E
+// 0x3E -  LD A, d8
 func (z *Z80) LD_A_d8() {
 	immediate := z.readMemory(z.PC + 1)
 
@@ -683,6 +694,46 @@ func (z *Z80) LD_E_A() {
 	z.M = 4
 }
 
+// 0x62 - LD H, D
+func (z *Z80) LD_H_D() {
+	z.H = z.D // Carrega o valor do registrador D no registrador H
+	z.setHL()
+
+	z.PC++
+	z.M = 4
+}
+
+// 0x67 - LD H, A
+func (z *Z80) LD_H_A() {
+	z.H = z.A // Carrega o valor do registrador A no registrador H
+	z.setHL()
+
+	z.PC++
+	z.M = 4
+
+	fmt.Println("---------------------------0x67---------------------------")
+	opcode := z.readMemory(z.PC)
+	fmt.Println("\n================ Registros ================")
+	fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
+	fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
+	fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
+	fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
+	fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
+	fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
+	fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
+	fmt.Println("=============================================")
+	fmt.Scanln()
+}
+
+// 0x6B - LD L, E
+func (z *Z80) LD_L_E() {
+	z.L = z.E // Carrega o valor do registrador E no registrador L
+	z.setHL()
+
+	z.PC++
+	z.M = 4
+}
+
 // 0x6E - LD L, (HL)
 func (z *Z80) LD_L_HL() {
 	z.L = z.Memory.ReadByte(z.HL)
@@ -690,19 +741,6 @@ func (z *Z80) LD_L_HL() {
 
 	z.PC++
 	z.M = 8
-
-	// fmt.Println("0x6E")
-	// opcode := z.readMemory(z.PC)
-	// fmt.Println("\n================ Registros ================")
-	// fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
-	// fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
-	// fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
-	// fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
-	// fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
-	// fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
-	// fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
-	// fmt.Println("=============================================")
-	// fmt.Scanln()
 }
 
 // 0x6F - LD L, A
@@ -816,6 +854,22 @@ func (z *Z80) LD_A_A() {
 	z.M = 4
 }
 
+// 0x81 - ADD A, C
+func (z *Z80) ADD_A_C() {
+	result := uint16(z.A) + uint16(z.C)
+
+	z.A = uint8(result)
+
+	z.Z = z.A == 0
+	z.N = false
+	z.HF = (z.A & 0x0F) < (z.C & 0x0F)
+	z.CF = result > 0xFF
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
+}
+
 // // 0x87 - RES 0, A (Clear bit 0 of A)
 // func (z *Z80) RES_0_A() {
 //     z.A &^= 0x01  // Zera o bit 0 do registrador A
@@ -832,6 +886,23 @@ func (z *Z80) LD_A_A() {
 //     z.PC++  // Incrementa o contador de programa (PC)
 //     z.M = 8 // Define o número de ciclos de máquina
 // }
+
+// 0x91 - SUB C
+func (z *Z80) SUB_C() {
+	result := uint16(z.A) - uint16(z.C)
+
+	z.A = uint8(result)
+
+	z.Z = z.A == 0
+	z.N = true
+	z.HF = int16(z.A&0x0F)-int16(z.C&0x0F) < 0 // Verifica se houve empréstimo de meio byte (half carry)
+	z.CF = result > 0xFF                       // Seta a flag de carry se houver overflow
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
+
+}
 
 // 0xA1 - AND C
 func (z *Z80) AND_C() {
@@ -975,6 +1046,94 @@ func (z *Z80) OR_A() {
 	z.M = 4
 }
 
+// 0xB8 - CP B (Compare B with A)
+func (z *Z80) CP_B() {
+	// Realiza a operação de subtração de C de A
+	result := uint16(z.A) - uint16(z.B)
+
+	z.Z = result == 0
+	z.N = true
+	z.HF = (z.B & 0x0F) > (z.A & 0x0F)
+	z.CF = z.B > z.A
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
+}
+
+// 0xB9 - CP C (Compare C with A)
+func (z *Z80) CP_C() {
+	// Realiza a operação de subtração de C de A
+	result := uint16(z.A) - uint16(z.C)
+
+	z.Z = result == 0
+	z.N = true
+	z.HF = (z.C & 0x0F) > (z.A & 0x0F)
+	z.CF = z.C > z.A
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
+
+	// fmt.Println("---------------------------0xB9---------------------------")
+	// opcode := z.readMemory(z.PC)
+	// fmt.Println("\n================ Registros ================")
+	// fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
+	// fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
+	// fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
+	// fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
+	// fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
+	// fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
+	// fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
+	// fmt.Println("=============================================")
+	// fmt.Scanln()
+}
+
+// 0xBA - CP D (Compare D with A)
+func (z *Z80) CP_D() {
+	// Realiza a operação de subtração de D de A
+	result := uint16(z.A) - uint16(z.D)
+
+	z.Z = result == 0
+	z.N = true
+	z.HF = (z.D & 0x0F) > (z.A & 0x0F)
+	z.CF = z.D > z.A
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
+}
+
+// 0xBB - CP E (Compare E with A)
+func (z *Z80) CP_E() {
+	// Realiza a operação de subtração de E de A
+	result := uint16(z.A) - uint16(z.E)
+
+	z.Z = result == 0
+	z.N = true
+	z.HF = (z.E & 0x0F) > (z.A & 0x0F)
+	z.CF = z.E > z.A
+	//z.CF = result > 0xFF
+	//z.A = uint8(result)
+	z.setFlags()
+
+	z.PC++
+	z.M = 4
+
+	// fmt.Println("---------------------------0xBB---------------------------")
+	// opcode := z.readMemory(z.PC)
+	// fmt.Println("\n================ Registros ================")
+	// fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
+	// fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
+	// fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
+	// fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
+	// fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
+	// fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
+	// fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
+	// fmt.Println("=============================================")
+	// fmt.Scanln()
+}
+
 // 0xC0 - RET NZ (Return if Not Zero)
 func (z *Z80) RET_NZ() {
 	if !z.Z {
@@ -1002,6 +1161,22 @@ func (z *Z80) POP_BC() {
 
 	z.PC++
 	z.M = 12
+}
+
+// 0xC2 - JP NZ, nn (Jump to address nn if not zero !Z)
+func (z *Z80) JP_NZ_nn() {
+	// Lê os bytes imediatos (nn) da memória
+	lowByte := uint16(z.readMemory(z.PC + 1))
+	highByte := uint16(z.readMemory(z.PC + 2))
+	address := (highByte << 8) | lowByte
+
+	if !z.Z {
+		z.PC = address
+		z.M = 16
+	} else {
+		z.PC += 3
+		z.M = 12
+	}
 }
 
 // 0xC3 - JP nn
@@ -1089,7 +1264,7 @@ func (z *Z80) RET() {
 	z.M = 16
 }
 
-// 0xCD
+// 0xCD - CALL nn
 func (z *Z80) CALL_nn() {
 	lowByte := uint16(z.readMemory(z.PC + 1))
 	highByte := uint16(z.readMemory(z.PC + 2))
@@ -1139,19 +1314,6 @@ func (z *Z80) RET_NC() {
 		z.PC++
 		z.M = 8
 	}
-
-	// fmt.Println("0xD0")
-	// opcode := z.readMemory(z.PC)
-	// fmt.Println("\n================ Registros ================")
-	// fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
-	// fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
-	// fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
-	// fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
-	// fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
-	// fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
-	// fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
-	// fmt.Println("=============================================")
-	// fmt.Scanln()
 }
 
 // 0xD1 - POP DE
@@ -1167,6 +1329,20 @@ func (z *Z80) POP_DE() {
 
 	z.PC++
 	z.M = 12
+
+	// fmt.Println("---------------------------0xD1---------------------------")
+	// opcode := z.readMemory(z.PC)
+	// fmt.Println("\n================ Registros ================")
+	// fmt.Printf("lowByte: %X highByte: %X\n", lowByte, highByte)
+	// fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
+	// fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
+	// fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
+	// fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
+	// fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
+	// fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
+	// fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
+	// fmt.Println("=============================================")
+	// fmt.Scanln()
 }
 
 // 0xD5 - PUSH DE
@@ -1200,6 +1376,21 @@ func (z *Z80) SUB_A_d8() {
 	//fmt.Println("0xD6")
 }
 
+// 0xD8 - RET C (Return if Carry)
+func (z *Z80) RET_C() {
+	if z.CF {
+		returnAddress := z.Memory.ReadWord(z.SP)
+		z.SP += 2
+
+		z.PC = returnAddress
+		z.M = 20
+	} else {
+		z.PC++
+		z.M = 8
+	}
+
+}
+
 // 0xD9 - RET I
 func (z *Z80) RETI() {
 
@@ -1214,7 +1405,7 @@ func (z *Z80) RETI() {
 
 }
 
-// 0xE0
+// 0xE0 - LD address a8, A
 func (z *Z80) LDH_a8_A() {
 	immediate := z.readMemory(z.PC + 1)
 
@@ -1247,8 +1438,21 @@ func (z *Z80) LD_c_A() {
 
 	z.Memory.WriteByte(address, z.A) // Armazenar o valor do registrador A no endereço calculado
 
-	z.PC++
+	z.PC += 2
 	z.M = 8
+
+	fmt.Println("---------------------------0xE2---------------------------")
+	opcode := z.readMemory(z.PC)
+	fmt.Println("\n================ Registros ================")
+	fmt.Printf("Z: %t N: %t HF: %t CF: %t\n", z.Z, z.N, z.HF, z.CF)
+	fmt.Printf("PC: 0x%X  SP: 0x%X  LY: 0x%X\n", z.PC, z.SP, z.Memory.Hram[0x44])
+	fmt.Printf("A:  0x%X  F:  0x%X  AF: 0x%X\n", z.A, z.F, z.AF)
+	fmt.Printf("B:  0x%X  C:  0x%X  BC: 0x%X\n", z.B, z.C, z.BC)
+	fmt.Printf("D:  0x%X  E:  0x%X  DE: 0x%X\n", z.D, z.E, z.DE)
+	fmt.Printf("H:  0x%X  L:  0x%X  HL: 0x%X\n", z.H, z.L, z.HL)
+	fmt.Printf("NEXT OPCODE:  0x%X\n", opcode)
+	fmt.Println("=============================================")
+	// fmt.Scanln()
 }
 
 // 0xE5 - PUSH HL
@@ -1284,7 +1488,7 @@ func (z *Z80) JP_HL() {
 	z.M = 4
 }
 
-// 0xEA
+// 0xEA - LD nn, A
 func (z *Z80) LD_nn_A() {
 	address := uint16(z.readMemory(z.PC+1)) | (uint16(z.readMemory(z.PC+2)) << 8)
 
@@ -1332,11 +1536,6 @@ func (z *Z80) LDH_A_a8() {
 
 	z.setAF()
 
-	fmt.Println("0xF0")
-	fmt.Printf("ADDR: 0x%X valor: 0x%X  AF:0x%X\n", address, z.readMemory(address), z.AF)
-	// fmt.Println(z.Memory.Hram)
-	//fmt.Scanln()
-
 	z.PC += 2
 	z.M = 12
 
@@ -1348,18 +1547,31 @@ func (z *Z80) POP_AF() {
 	highByte := uint16(z.readMemory(z.SP+1)) << 8 //A
 
 	z.AF = lowByte | highByte
-	z.A = uint8(z.AF >> 8)   // Obtém o byte mais significativo (high byte)
-	z.F = uint8(z.AF & 0xFF) // Obtém o byte menos significativo (low byte)
+	z.A = uint8(z.AF >> 8) // Obtém o byte mais significativo (high byte)
+	//z.F = uint8(z.AF & 0xFF) // Obtém o byte menos significativo (low byte)
+	z.F = uint8(z.AF & 0xF0) // Obtém o byte menos significativo (low byte)
+
+	z.Z = z.F&0x80 != 0
+	z.N = z.F&0x40 != 0
+	z.HF = z.F&0x20 != 0
+	z.CF = z.F&0x10 != 0
+	z.setFlags()
+
 	z.SP += 2
 
 	z.PC++
 	z.M = 12
+
+	fmt.Println("---------------------------0xF1---------------------------")
+	fmt.Println("\n================ Registros ================")
+	fmt.Printf("Low:  0x%X  High:  0x%X\n", lowByte, highByte)
+	fmt.Println("=============================================")
+	// fmt.Scanln()
 }
 
-// 0xF3
+// 0xF3 - DI (Disable interrupt)
 func (z *Z80) DI() {
 	z.IME = false
-	//gb.interruptsOn = false
 	z.PC++
 	z.M = 4
 }
@@ -1375,6 +1587,45 @@ func (z *Z80) PUSH_AF() {
 
 }
 
+// 0xF6 - OR d8 (Logical OR immediate with A)
+func (z *Z80) OR_d8() {
+	immediate := z.readMemory(z.PC + 1)
+	z.A |= immediate
+
+	z.Z = z.A == 0
+	z.N = false
+	z.HF = false
+	z.CF = false
+	z.setFlags()
+
+	z.PC += 2
+	z.M = 8
+}
+
+// 0xF8 - LD HL, SP+r8 (Load HL with SP plus signed 8-bit offset)
+func (z *Z80) LD_HL_SP_r8() {
+	displacement := int8(z.readMemory(z.PC + 1))
+
+	total := uint16(int32(z.SP) + int32(displacement))
+
+	z.HL = total
+
+	z.H = uint8(z.HL >> 8)
+	z.L = uint8(z.HL & 0xFF)
+
+	z.Z = false
+	z.N = false
+
+	z.HF = ((z.SP&0x0F)+uint16(displacement))&0x10 != 0
+	z.CF = ((z.SP&0xFF)+uint16(displacement))&0x100 != 0
+
+	z.setFlags()
+
+	z.PC += 2
+	z.M = 12
+	//Talvez esteja errado
+}
+
 // 0xF9 - LD SP, HL (Load HL into SP)
 func (z *Z80) LD_SP_HL() {
 	z.SP = z.HL
@@ -1383,7 +1634,7 @@ func (z *Z80) LD_SP_HL() {
 	z.M = 8
 }
 
-// 0xFA
+// 0xFA - LD A, nn
 func (z *Z80) LD_A_nn() {
 	lowByte := uint16(z.readMemory(z.PC + 1))
 	highByte := uint16(z.readMemory(z.PC + 2))
@@ -1393,7 +1644,7 @@ func (z *Z80) LD_A_nn() {
 	z.setAF()
 
 	z.PC += 3
-	z.M = 13
+	z.M = 16
 }
 
 // 0xFB - EI (Enable Interrupts)
@@ -1403,7 +1654,7 @@ func (z *Z80) EI() {
 	z.M = 4
 }
 
-// 0xFE
+// 0xFE - CP n
 func (z *Z80) CP_n() {
 	immediate := z.readMemory(z.PC + 1)
 
@@ -1420,7 +1671,7 @@ func (z *Z80) CP_n() {
 	z.M = 8
 }
 
-// 0xFF
+// 0xFF - RST 0x0038
 func (z *Z80) RST_38H() {
 	z.SP -= 2
 	z.Memory.WriteWord(z.SP, z.PC+1)

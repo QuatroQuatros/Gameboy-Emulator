@@ -56,8 +56,9 @@ func (z *Z80) ExecuteCBInstruction() {
 		z.HF = false
 		z.CF = false
 		z.setFlags()
+
+		z.PC += 2
 		z.M = 8
-		fmt.Println("CB37")
 	case 0x38:
 		//SRL B
 		carry := (z.B & 0x01) != 0
@@ -77,7 +78,23 @@ func (z *Z80) ExecuteCBInstruction() {
 		z.PC += 2
 		z.M = 8
 		fmt.Println("CB38")
+	case 0x3F:
+		//SRL A
+		carry := (z.A & 0x01) != 0
+		result := z.A >> 1
+		result &= 0x7F
 
+		z.A = result
+
+		z.Z = z.A == 0
+		z.N = false
+		z.HF = false
+		z.CF = carry
+
+		z.setFlags()
+
+		z.PC += 2
+		z.M = 8
 	// case 0x86:
 	//     // RES 0, (HL)
 	//     address := z.HL
@@ -88,11 +105,12 @@ func (z *Z80) ExecuteCBInstruction() {
 	case 0x87:
 		// RES 0, A
 		z.A &^= (1 << 0) // Clear bit 0 of A
-		z.Z = z.A == 0
-		z.N = false
-		z.HF = false
-		z.CF = false
+		// z.Z = z.A == 0
+		// z.N = false
+		// z.HF = false
+		// z.CF = false
 		z.setFlags()
+		z.PC += 2
 		z.M = 8
 		fmt.Println("CB87")
 	// case 0x88:

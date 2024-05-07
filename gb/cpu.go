@@ -126,6 +126,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.LD_BC_nn()
 	case 0x03:
 		z.INC_BC()
+	case 0x04:
+		z.INC_B()
 	case 0x05:
 		z.DEC_B()
 	case 0x06:
@@ -156,6 +158,10 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.LD_A_DE_addr()
 	case 0x1C:
 		z.INC_E()
+	case 0x1D:
+		z.DEC_E()
+	case 0x1E:
+		z.LD_E_d8()
 	case 0x1F:
 		z.RRA()
 	case 0x20:
@@ -220,6 +226,12 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.LD_E_HL()
 	case 0x5F:
 		z.LD_E_A()
+	case 0x62:
+		z.LD_H_D()
+	case 0x67:
+		z.LD_H_A()
+	case 0x6B:
+		z.LD_L_E()
 	case 0x6E:
 		z.LD_L_HL()
 	case 0x6F:
@@ -248,8 +260,12 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.LD_A_HL()
 	case 0x7F:
 		z.LD_A_A()
+	case 0x81:
+		z.ADD_A_C()
 	// case 0x87:
 	//     z.RES_0_A()
+	case 0x91:
+		z.SUB_C()
 	case 0xA1:
 		z.AND_C()
 	case 0xA7:
@@ -268,10 +284,20 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.OR_HL_addr()
 	case 0xB7:
 		z.OR_A()
+	case 0xB8:
+		z.CP_B()
+	case 0xB9:
+		z.CP_C()
+	case 0xBA:
+		z.CP_D()
+	case 0xBB:
+		z.CP_E()
 	case 0xC0:
 		z.RET_NZ()
 	case 0xC1:
 		z.POP_BC()
+	case 0xC2:
+		z.JP_NZ_nn()
 	case 0xC3:
 		z.JP_nn()
 	case 0xC4:
@@ -298,6 +324,8 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.PUSH_DE()
 	case 0xD6:
 		z.SUB_A_d8()
+	case 0xD8:
+		z.RET_C()
 	case 0xD9:
 		z.RETI()
 	case 0xE0:
@@ -326,6 +354,10 @@ func (z *Z80) ExecuteInstruction(opcode byte) {
 		z.DI()
 	case 0xF5:
 		z.PUSH_AF()
+	case 0xF6:
+		z.OR_d8()
+	case 0xF8:
+		z.LD_HL_SP_r8()
 	case 0xF9:
 		z.LD_SP_HL()
 	case 0xFA:
