@@ -12,24 +12,22 @@ const (
 	ClockSpeed = 4194304
 	// FramesSecond is the target number of frames for each frame of GameBoy output.
 	FramesSecond = 60
+	//FramesSecond = 59.7
 	// CyclesFrame is the number of CPU cycles in each frame.
+	//CyclesFrame = 70224
+	//CyclesFrame = 65664
 	CyclesFrame = ClockSpeed / FramesSecond
 )
 
 type Gameboy struct {
-	//options gameboyOptions
-
 	Memory *Memory
 	CPU    *Z80
 	//Sound  *apu.APU
 
-	//Debug  DebugFlags
-	//paused bool
-
 	timerCounter int
 
-	// Matrix of pixel data which is used while the screen is rendering. When a
-	// frame has been completed, this data is copied into the PreparedData matrix.
+	paused bool
+
 	screenData [ScreenWidth][ScreenHeight][3]uint8
 	bgPriority [ScreenWidth][ScreenHeight]bool
 
@@ -38,12 +36,9 @@ type Gameboy struct {
 	scanlineCounter int
 	screenCleared   bool
 
-	// PreparedData is a matrix of screen pixel data for a single frame which has
-	// been fully rendered.
 	PreparedData [ScreenWidth][ScreenHeight][3]uint8
 
-	interruptsOn bool
-	halted       bool
+	halted bool
 
 	// Mask of the currently pressed buttons.
 	inputMask byte
@@ -57,22 +52,116 @@ type Gameboy struct {
 	currentSpeed byte
 	prepareSpeed bool
 
-	//thisCpuTicks int
-
-	//keyHandlers map[Button]func()
+	keyHandlers map[Button]func()
 }
 
-var interruptAddresses = map[byte]uint16{
-	0: 0x40, // V-Blank
-	1: 0x48, // LCDC Status
-	2: 0x50, // Timer Overflow
-	3: 0x58, // Serial Transfer
-	4: 0x60, // Hi-Lo P10-P13
+func (gb *Gameboy) joypadValue(current byte) byte {
+	var in byte = 0xF
+	if bits.Test(current, 4) {
+		in = gb.inputMask & 0xF
+	} else if bits.Test(current, 5) {
+		in = (gb.inputMask >> 4) & 0xF
+	}
+	return current | 0xc0 | in
+}
+
+func (gb *Gameboy) togglePaused() {
+	gb.paused = !gb.paused
 }
 
 func (gb *Gameboy) getSpeed() int {
 	return int(gb.currentSpeed + 1)
 }
+
+func (gb *Gameboy) IsCGB() bool {
+	// if gb.cgbMode {
+	// 	fmt.Printf("CGB: %t\n", gb.cgbMode)
+	// 	fmt.Scanln()
+	// }
+	return gb.cgbMode
+}
+
+func (gb *Gameboy) IsGameLoaded() bool {
+	return gb.Memory != nil && gb.Memory.Cart != nil
+}
+
+func (gb *Gameboy) pushStack(addr uint16) {
+	gb.Memory.WriteByte(gb.CPU.SP-1, byte(uint16(addr&0xFF00)>>8))
+	gb.Memory.WriteByte(gb.CPU.SP-2, byte(addr&0xFF))
+
+	gb.CPU.SP -= 2
+}
+
+func (gb *Gameboy) checkSpeedSwitch() {
+	if gb.prepareSpeed {
+		// Switch speed
+		gb.prepareSpeed = false
+		if gb.currentSpeed == 0 {
+			gb.currentSpeed = 1
+		} else {
+			gb.currentSpeed = 0
+		}
+		gb.halted = false
+	}
+}
+
+func (gb *Gameboy) BGMapString() string {
+	out := ""
+	for y := uint16(0); y < 0x20; y++ {
+		out += fmt.Sprintf("%2x: ", y)
+		for x := uint16(0); x < 0x20; x++ {
+			out += fmt.Sprintf("%2x ", gb.Memory.ReadByte(0x9800+(y*0x20)+x))
+		}
+		out += "\n"
+	}
+	return out
+}
+
+func (gb *Gameboy) Update() int {
+	cycles := 0
+	//targetCycles := CyclesFrame * gb.getSpeed()
+
+	//for cycles+4 < CyclesFrame*gb.getSpeed() {
+	for cycles < CyclesFrame*gb.getSpeed() {
+		cyclesOp := 4
+		if !gb.halted {
+			cyclesOp = gb.CPU.EmulateCycle()
+		}
+
+		// Atualiza gráficos e timers com o número correto de ciclos
+		gb.updateGraphics(cyclesOp)
+		gb.updateTimers(cyclesOp)
+		cycles += cyclesOp
+		cycles += gb.doInterrupts()
+
+		//gb.Sound.Buffer(cyclesOp, gb.getSpeed())
+	}
+
+	return cycles
+}
+
+func (gb *Gameboy) updateTimers(cycles int) {
+	gb.dividerRegister(cycles)
+	if gb.isClockEnabled() {
+		gb.timerCounter += cycles
+
+		freq := gb.getClockFreqCount()
+		for gb.timerCounter >= freq {
+			gb.timerCounter -= freq
+			tima := gb.Memory.Hram[0x05] /* TIMA */
+			if tima == 0xFF {
+				gb.Memory.Hram[TIMA-0xFF00] = gb.Memory.Hram[0x06] /* TMA */
+				gb.requestInterrupt(2)
+			} else {
+				gb.Memory.Hram[TIMA-0xFF00] = tima + 1
+			}
+		}
+	}
+}
+
+// func (gb *Gameboy) ToggleSoundChannel(channel int) {
+// 	gb.Sound.ToggleSoundChannel(channel)
+// }
 
 func (gb *Gameboy) isClockEnabled() bool {
 	return bits.Test(gb.Memory.Hram[0x07] /* TAC */, 2)
@@ -99,40 +188,28 @@ func (gb *Gameboy) setClockFreq() {
 	gb.timerCounter = 0
 }
 
-func (gb *Gameboy) IsCGB() bool {
-	if gb.cgbMode {
-		fmt.Printf("CGB: %t\n", gb.cgbMode)
-		fmt.Scanln()
+func (gb *Gameboy) dividerRegister(cycles int) {
+	gb.CPU.Divider += cycles
+	if gb.CPU.Divider >= 255 {
+		gb.CPU.Divider -= 255
+		gb.Memory.Hram[DIV-0xFF00]++
 	}
-	return gb.cgbMode
 }
 
-func (gb *Gameboy) IsGameLoaded() bool {
-	return gb.Memory != nil && gb.Memory.Cart != nil
-}
-
-func (gb *Gameboy) pushStack(addr uint16) {
-	gb.Memory.WriteByte(gb.CPU.SP-1, byte(uint16(addr&0xFF00)>>8))
-	gb.Memory.WriteByte(gb.CPU.SP-2, byte(addr&0xFF))
-
-	gb.CPU.SP -= 2
-}
-
+// Request the Gameboy to perform an interrupt.
 func (gb *Gameboy) requestInterrupt(interrupt byte) {
-	// fmt.Printf("Interrupção: 0x%X\n", interrupt)
-	// fmt.Scanln()
 	req := gb.Memory.Hram[0x0F] | 0xE0
 	req = bits.Set(req, interrupt)
 	gb.Memory.WriteByte(0xFF0F, req)
 }
 
 func (gb *Gameboy) doInterrupts() (cycles int) {
-	if gb.CPU.IME {
-		gb.interruptsOn = true
-		gb.CPU.IME = false
+	if gb.CPU.InterruptsEnabling {
+		gb.CPU.IME = true
+		gb.CPU.InterruptsEnabling = false
 		return 0
 	}
-	if !gb.interruptsOn && !gb.halted {
+	if !gb.CPU.IME && !gb.halted {
 		return 0
 	}
 
@@ -151,26 +228,13 @@ func (gb *Gameboy) doInterrupts() (cycles int) {
 	return 0
 }
 
-func (gb *Gameboy) checkSpeedSwitch() {
-	if gb.prepareSpeed {
-		// Switch speed
-		gb.prepareSpeed = false
-		if gb.currentSpeed == 0 {
-			gb.currentSpeed = 1
-		} else {
-			gb.currentSpeed = 0
-		}
-		gb.halted = false
-	}
-}
-
 func (gb *Gameboy) serviceInterrupt(interrupt byte) {
 	// If was halted without interrupts, do not jump or reset IF
-	if !gb.interruptsOn && gb.halted {
+	if !gb.CPU.IME && gb.halted {
 		gb.halted = false
 		return
 	}
-	gb.interruptsOn = false
+	gb.CPU.IME = false
 	gb.halted = false
 
 	req := gb.Memory.ReadHighRam(0xFF0F)
@@ -179,99 +243,47 @@ func (gb *Gameboy) serviceInterrupt(interrupt byte) {
 
 	gb.pushStack(gb.CPU.PC)
 	gb.CPU.PC = interruptAddresses[interrupt]
-	// fmt.Printf("Interrupção ADDR 0x%X\n", interruptAddresses[interrupt])
-	// fmt.Scanln()
 }
 
-func (gb *Gameboy) BGMapString() string {
-	out := ""
-	for y := uint16(0); y < 0x20; y++ {
-		out += fmt.Sprintf("%2x: ", y)
-		for x := uint16(0); x < 0x20; x++ {
-			out += fmt.Sprintf("%2x ", gb.Memory.ReadByte(0x9800+(y*0x20)+x))
-		}
-		out += "\n"
-	}
-	return out
+var interruptAddresses = map[byte]uint16{
+	0: 0x40, // V-Blank
+	1: 0x48, // LCDC Status
+	2: 0x50, // Timer Overflow
+	3: 0x58, // Serial Transfer
+	4: 0x60, // Hi-Lo P10-P13
 }
 
-// func (gb *Gameboy) printBGMap() {
-// 	fmt.Printf("BG Map:\n%s", gb.BGMapString())
-// }
-
-func (gb *Gameboy) Update() int {
-	// if gb.paused {
-	// 	return 0
-	// }
-
-	cycles := 0
-	for cycles < CyclesFrame*gb.getSpeed() {
-		cyclesOp := 4
-		if !gb.halted {
-			// if gb.Debug.OutputOpcodes {
-			// 	LogOpcode(gb, false)
-			// }
-			cyclesOp = gb.CPU.EmulateCycle()
-			// } else {
-			// 	// TODO: This is incorrect
-		}
-		cycles += cyclesOp
-
-		gb.updateGraphics(cyclesOp)
-		//memoryView.RenderMemory(gb)
-
-		gb.updateTimers(cyclesOp)
-		// fmt.Println("to aqui")
-		// fmt.Scanln()
-		cycles += gb.doInterrupts()
-
-		//gb.Sound.Buffer(cyclesOp, gb.getSpeed())
-	}
-	// gb.printBGMap()
-	// fmt.Scanln()
-	return cycles
-}
-
-func (gb *Gameboy) dividerRegister(cycles int) {
-	gb.CPU.Divider += cycles
-	if gb.CPU.Divider >= 255 {
-		gb.CPU.Divider -= 255
-		gb.Memory.Hram[DIV-0xFF00]++
-	}
-}
-
-func (gb *Gameboy) updateTimers(cycles int) {
-	gb.dividerRegister(cycles)
-	if gb.isClockEnabled() {
-		gb.timerCounter += cycles
-
-		freq := gb.getClockFreqCount()
-		for gb.timerCounter >= freq {
-			gb.timerCounter -= freq
-			tima := gb.Memory.Hram[0x05] /* TIMA */
-			if tima == 0xFF {
-				gb.Memory.Hram[TIMA-0xFF00] = gb.Memory.Hram[0x06] /* TMA */
-				gb.requestInterrupt(2)
-			} else {
-				gb.Memory.Hram[TIMA-0xFF00] = tima + 1
-			}
-		}
-	}
-}
-
-func (gb *Gameboy) iniciar(romFile string) error {
-	gb.setup()
+func (gb *Gameboy) iniciar(romFile string, isCBG bool) error {
+	gb.setup(isCBG)
 
 	// Load the ROM file
 	hasCGB, err := gb.Memory.LoadCart(romFile)
 	if err != nil {
 		return fmt.Errorf("failed to open rom file: %w", err)
 	}
-	gb.cgbMode = false && hasCGB
+	// gb.cgbMode = false && hasCGB
+
+	gb.cgbMode = isCBG && hasCGB
+
 	return nil
 }
 
-func (gb *Gameboy) setup() {
+func (gb *Gameboy) initKeyHandlers() {
+	gb.keyHandlers = map[Button]func(){
+		ButtonPause:         gb.togglePaused,
+		ButtonChangePallete: changePallete,
+		//ButtonToggleBackground:    gb.Debug.toggleBackGround,
+		//ButtonToggleSprites:       gb.Debug.toggleSprites,
+		//ButttonToggleOutputOpCode: gb.Debug.toggleOutputOpCode,
+		//ButtonPrintBGMap:          gb.printBGMap,
+		// ButtonToggleSoundChannel1: func() { gb.ToggleSoundChannel(1) },
+		// ButtonToggleSoundChannel2: func() { gb.ToggleSoundChannel(2) },
+		// ButtonToggleSoundChannel3: func() { gb.ToggleSoundChannel(3) },
+		// ButtonToggleSoundChannel4: func() { gb.ToggleSoundChannel(4) },
+	}
+}
+
+func (gb *Gameboy) setup(isCBG bool) {
 
 	// Initialise the memory
 	gb.Memory = &Memory{}
@@ -279,12 +291,10 @@ func (gb *Gameboy) setup() {
 
 	// Initialise the CPU
 	gb.CPU = &Z80{}
-	gb.CPU.Init(gb.Memory, true)
+	gb.CPU.Init(gb.Memory, isCBG)
 
 	// gb.Sound = &apu.APU{}
-	// gb.Sound.Init(gb.options.sound)
-
-	// gb.Debug = DebugFlags{}
+	// gb.Sound.Init(true)
 
 	gb.scanlineCounter = 456
 	gb.inputMask = 0xFF
@@ -292,15 +302,34 @@ func (gb *Gameboy) setup() {
 	gb.SpritePalette = NewPalette()
 	gb.BGPalette = NewPalette()
 
-	// gb.initKeyHandlers()
+	gb.initKeyHandlers()
 }
 
-func NewGameboy(romFile string) (*Gameboy, error) {
-	gameboy := Gameboy{}
+// func NewGameboy(romFile string) (*Gameboy, error) {
+// 	gameboy := Gameboy{}
 
-	err := gameboy.iniciar(romFile)
+// 	err := gameboy.iniciar(romFile)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &gameboy, nil
+// }
+
+func NewGameboy(romFile string, isCBG bool) (*Gameboy, error) {
+	// Criar uma única instância de Memory
+	memory := &Memory{}
+
+	// Criar a instância do Gameboy e associar a mesma memória
+	gameboy := &Gameboy{
+		Memory: memory,
+		CPU: &Z80{
+			Memory: memory, // CPU usa a mesma instância de Memory
+		},
+	}
+
+	err := gameboy.iniciar(romFile, isCBG)
 	if err != nil {
 		return nil, err
 	}
-	return &gameboy, nil
+	return gameboy, nil
 }

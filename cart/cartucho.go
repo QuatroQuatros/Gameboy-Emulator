@@ -123,6 +123,7 @@ func NewCart(rom []byte, filename string) *Cart {
 		}
 	}
 	log.Printf("Cart type: %#02x (%v)", mbcFlag, cartType)
+	log.Printf("Cart mode: %v", cartridge.mode)
 	fmt.Scanln()
 
 	// switch mbcFlag {

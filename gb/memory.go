@@ -81,9 +81,6 @@ func (m *Memory) Init(gameboy *Gameboy) {
 	m.Hram[0x4B] = 0x00
 	m.Hram[0xFF] = 0x00
 
-	//teste
-	//m.Hram[0x44] = 20
-
 	m.WramBank = 1
 }
 
@@ -97,8 +94,6 @@ func (m *Memory) LoadCart(rom string) (bool, error) {
 }
 
 func (m *Memory) ReadByte(addr uint16) byte {
-	// fmt.Printf("Vou LER na RAM  ADDR: 0x%X\n", addr)
-	//fmt.Scanln()
 	switch {
 	case addr < 0x8000: // ROM
 		return m.Cart.Read(addr)
@@ -121,14 +116,13 @@ func (m *Memory) ReadByte(addr uint16) byte {
 	case addr < 0xFE00:
 		// Echo RAM
 		// TODO: re-enable echo RAM?
-		//mem.Data[addr] = value
-		//mem.Write(addr-0x2000, value)
 		return 0xFF
 	case addr < 0xFEA0:
 		// Object Attribute Memory
 		return m.Oam[addr-0xFE00]
 
-	case addr < 0xFF00: // Unusable memory
+	case addr < 0xFF00:
+		// Unusable memory
 		return 0xFF
 
 	default:
@@ -137,20 +131,18 @@ func (m *Memory) ReadByte(addr uint16) byte {
 }
 
 func (m *Memory) ReadHighRam(addr uint16) byte {
-	// fmt.Printf("Vou LER na HRAM  ADDR: 0x%X\n", addr)
-	//fmt.Scanln()
+
 	switch {
 	// Joypad address
 	case addr == 0xFF00:
-		return 0
-	// 	return mem.gb.joypadValue(mem.HighRAM[0x00])
+		return m.gb.joypadValue(m.Hram[0x00])
 
 	case addr >= 0xFF10 && addr <= 0xFF26:
-		return 0
+		return 0xFF
 	// 	return mem.gb.Sound.Read(addr)
 
 	case addr >= 0xFF30 && addr <= 0xFF3F:
-		return 0
+		return 0xFF
 	// 	// Writing to channel 3 waveform RAM.
 	// 	return mem.gb.Sound.Read(addr)
 
@@ -179,6 +171,7 @@ func (m *Memory) ReadHighRam(addr uint16) byte {
 		if m.gb.IsCGB() {
 			return m.gb.SpritePalette.readIndex()
 		}
+		//return 0xFF
 		return 0
 
 	case addr == 0xFF6B:
@@ -186,11 +179,17 @@ func (m *Memory) ReadHighRam(addr uint16) byte {
 		if m.gb.IsCGB() {
 			return m.gb.SpritePalette.read()
 		}
+		//return 0xFF
 		return 0
 
 	case addr == 0xFF4D:
-		// Speed switch data
-		return m.gb.currentSpeed<<7 | bits.B(m.gb.prepareSpeed)
+		if m.gb.IsCGB() {
+			//fmt.Printf("currentSpeed: %d, prepareSpeed: %t\n", m.gb.currentSpeed, m.gb.prepareSpeed)
+			newSpeed := m.gb.currentSpeed<<7 | bits.B(m.gb.prepareSpeed)
+			//fmt.Printf("newSpeed: %d\n", newSpeed)
+			return newSpeed
+		}
+		return 0xFF
 
 	case addr == 0xFF4F:
 		return m.VramBank
@@ -199,27 +198,21 @@ func (m *Memory) ReadHighRam(addr uint16) byte {
 		return m.WramBank
 
 	default:
-		// fmt.Println("TO AQUI HRAM")
-		// fmt.Printf("VALUE: 0x%X\n", m.Hram[address-0xFF00])
-		// fmt.Scanln()
-		// fmt.Printf("VOU TER QUE LER AQUI  ADDR: 0x%X  VALUE:  0x%X\n", addr-0xFF00, m.Hram[addr-0xFF00])
-		//fmt.Scanln()
+
 		return m.Hram[addr-0xFF00]
 	}
 }
 
 func (m *Memory) WriteByte(addr uint16, value byte) {
-	// fmt.Printf("Vou ESCREVER na RAM  ADDR: 0x%X  VALUE:  0x%X\n", addr, value)
+
 	switch {
 	case addr < 0x8000:
 		m.Cart.WriteROM(addr, value)
 
-	case addr < 0xA000: // Video RAM
+	case addr < 0xA000:
+		// Video RAM
 		bankOffset := uint16(m.VramBank) * 0x2000
 		m.Vram[addr-0x8000+bankOffset] = value
-		// fmt.Println("Escrevi na VRAM")
-		// fmt.Println(value)
-		// fmt.Scanln()
 
 	case addr < 0xC000:
 		// Cartridge ram
@@ -243,6 +236,7 @@ func (m *Memory) WriteByte(addr uint16, value byte) {
 
 	case addr < 0xFF00:
 		// Unusable memory
+		//return
 		break
 
 	default:
@@ -252,8 +246,7 @@ func (m *Memory) WriteByte(addr uint16, value byte) {
 }
 
 func (m *Memory) WriteHighRam(addr uint16, value byte) {
-	// fmt.Printf("Vou ESCREVER na HRAM  ADDR: 0x%X  VALUE:  0x%X\n", addr, value)
-	//fmt.Scanln()
+
 	switch {
 
 	case addr >= 0xFEA0 && addr < 0xFEFF:
@@ -261,15 +254,16 @@ func (m *Memory) WriteHighRam(addr uint16, value byte) {
 		return
 
 	case addr >= 0xFF10 && addr <= 0xFF26:
-		return
+		break
 		// m.gb.Sound.Write(address, value)
 
 	case addr >= 0xFF30 && addr <= 0xFF3F:
-		return
+		break
 		// Writing to channel 3 waveform RAM.
 		// m.gb.Sound.WriteWaveform(addr, value)
 
 	case addr == 0xFF02:
+		break
 		//Serial transfer control
 		// if value == 0x81{
 		// 	fmt.Println("Transfer")
@@ -316,8 +310,6 @@ func (m *Memory) WriteHighRam(addr uint16, value byte) {
 
 	case addr == 0xFF44:
 		// Trap scanline register
-		// fmt.Println("batata")
-		// fmt.Scanln()
 		m.Hram[0x44] = 0
 
 	case addr == 0xFF46:
@@ -380,7 +372,6 @@ func (m *Memory) WriteHighRam(addr uint16, value byte) {
 		log.Print("write to ", addr)
 
 	default:
-		// fmt.Printf("VOU TER QUE ESCREVER AQUI ADDR: 0x%X VALUE: 0x%X\n", addr-0xFF00, value)
 		m.Hram[addr-0xFF00] = value
 	}
 }

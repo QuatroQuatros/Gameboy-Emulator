@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"gameboy/gb"
 	"gameboy/io"
+	"gameboy/logger"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/faiface/pixel/pixelgl"
@@ -16,7 +20,27 @@ var (
 	unlocked = flag.Bool("unlocked", false, "if to unlock the cpu speed (debugging)")
 )
 
+func setupExitHandler() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM) // Captura Ctrl+C e SIGTERM
+
+	go func() {
+		<-c                                  // Aguarda o sinal
+		fmt.Print(logger.GetRemainingLogs()) // Exibe os logs restantes
+		os.Exit(0)                           // Encerra o programa
+	}()
+}
+
 func main() {
+	setupExitHandler()
+
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		fmt.Println("Programa interrompido:", r)
+	// 		logger.GetRemainingLogs() // Exibe os logs restantes
+	// 	}
+	// }()
+
 	flag.Parse()
 	pixelgl.Run(start)
 
@@ -26,31 +50,32 @@ func start() {
 	// Load the rom from the flag argument, or prompt with file select
 	//rom := getROM()
 
-	//rom := "./PokemonRed.gb"
-	//rom := "./Tetris.gb"
-	//rom := "./BombermanGB.gb"
-	rom := "./gb-test-roms/cpu_instrs/cpu_instrs.gb"
+	//rom := "./jogos/PokemonRed.gb"
+	//rom := "./jogos/Pokemon - Yellow.gbc"
+	rom := "./jogos/Pokemon - Gold.gbc"
+	//rom := "./jogos/Tetris.gb"
+	//rom := "./jogos/BombermanGB.gb"
+	//rom := "./gb-test-roms/cpu_instrs/cpu_instrs.gb"
 	//rom := "./gb-test-roms/instr_timing/instr_timing.gb"
+	//rom := "./gb-test-roms/interrupt_time/interrupt_time.gb"
+	//rom := "./gb-test-roms/mem_timing/mem_timing.gb"
+	//rom := "./gb-test-roms/mem_timing-2/rom_singles/01-read_timing.gb"
+	//rom := "./gb-test-roms/mem_timing-2/rom_singles/02-write_timing.gb"
+	//rom := "./gb-test-roms/mem_timing-2/rom_singles/03-modify_timing.gb"
 
 	// if *unlocked {
 	// 	*mute = true
 	// }
 
 	// Initialise the GameBoy with the flag options
-	gameboy, err := gb.NewGameboy(rom)
+	gameboy, err := gb.NewGameboy(rom, false)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// if *stepThrough {
-	// 	gameboy.Debug.OutputOpcodes = true
-	// }
 
 	// Create the monitor for pixels
 	enableVSync := !(*vsyncOff || *unlocked)
 	monitor := io.NewPixelsIOBinding(enableVSync, gameboy)
-
-	//Debug
-	// memoryView := io.NewMemoryView(gameboy)
 
 	emulateCycle(gameboy, monitor)
 
@@ -70,9 +95,6 @@ func emulateCycle(gameboy *gb.Gameboy, monitor gb.IOBinding) {
 	var cartName string
 	if gameboy.IsGameLoaded() {
 		cartName = gameboy.Memory.Cart.GetName()
-		// fmt.Println(cartName)
-		// fmt.Println(!monitor.IsRunning())
-		// fmt.Scanln()
 	}
 
 	for range ticker.C {
@@ -82,17 +104,11 @@ func emulateCycle(gameboy *gb.Gameboy, monitor gb.IOBinding) {
 
 		frames++
 
-		// buttons := monitor.ButtonInput()
-		// gameboy.ProcessInput(buttons)
+		buttons := monitor.ButtonInput()
+		gameboy.ProcessInput(buttons)
 
-		// fmt.Println(gameboy.CPU.Memory.Hram[0x44])
-		// fmt.Scanln()
-
-		//memoryView.RenderMemory(gameboy)
 		_ = gameboy.Update()
-		// memoryView.RenderMemory(gameboy)
-		// fmt.Println("to aqui")
-		// fmt.Scanln()
+
 		monitor.Render(&gameboy.PreparedData)
 
 		since := time.Since(start)

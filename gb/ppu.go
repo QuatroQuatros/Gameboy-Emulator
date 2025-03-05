@@ -1,7 +1,6 @@
 package gb
 
 import (
-	_ "fmt"
 	"gameboy/bits"
 )
 
@@ -14,29 +13,34 @@ const (
 const spritePriorityOffset = 100
 
 func (gb *Gameboy) updateGraphics(cycles int) {
+	// fmt.Printf("Antes: LY=0x%X, scanlineCounter=%d, ciclos=%d\n", gb.Memory.Hram[0x44], gb.scanlineCounter, cycles)
 	gb.setLCDStatus()
 
 	if !gb.isLCDEnabled() {
 		return
 	}
+
 	gb.scanlineCounter -= cycles
 
 	if gb.scanlineCounter <= 0 {
 		gb.Memory.Hram[0x44]++
 		if gb.Memory.Hram[0x44] > 153 {
+			gb.Memory.Hram[0x44] = 0
 			gb.PreparedData = gb.screenData
 			gb.screenData = [ScreenWidth][ScreenHeight][3]uint8{}
 			gb.bgPriority = [ScreenWidth][ScreenHeight]bool{}
-			gb.Memory.Hram[0x44] = 0
 		}
 
 		currentLine := gb.Memory.ReadHighRam(0xFF44)
+		// Reset do contador
 		gb.scanlineCounter += 456 * gb.getSpeed()
 
 		if currentLine == ScreenHeight {
 			gb.requestInterrupt(0)
 		}
+
 	}
+	// fmt.Printf("Depois: LY=0x%X, scanlineCounter=%d\n", gb.Memory.Hram[0x44], gb.scanlineCounter)
 }
 
 const (
@@ -115,6 +119,7 @@ func (gb *Gameboy) setLCDStatus() {
 		status = bits.Reset(status, 2)
 	}
 
+	//fmt.Printf("LCD: LY=0x%X, scanlineCounter=%d, mode:%d\n", gb.Memory.Hram[0x44], gb.scanlineCounter, mode)
 	gb.Memory.WriteByte(0xFF41, status)
 }
 
@@ -137,7 +142,7 @@ func (gb *Gameboy) renderTiles(lcdControl byte, scanline byte) {
 	scrollY := gb.Memory.ReadHighRam(0xFF42)
 	scrollX := gb.Memory.ReadHighRam(0xFF43)
 	windowY := gb.Memory.ReadHighRam(0xFF4A)
-	windowX := gb.Memory.ReadHighRam(0xFF44)
+	windowX := gb.Memory.ReadHighRam(0xFF4B) - 7
 
 	usingWindow, unsigned, tileData, backgroundMemory := gb.getTileSettings(lcdControl, windowY)
 

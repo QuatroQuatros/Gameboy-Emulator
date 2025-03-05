@@ -7,11 +7,10 @@ import (
 const (
 	ScreenWidth  = 160
 	ScreenHeight = 144
-	TITLE  = "Gameboy bolãdao"
-	WIDTH  = 160
-	HEIGHT = 144
+	TITLE        = "Gameboy boladão"
+	WIDTH        = 160
+	HEIGHT       = 144
 )
-
 
 func InitDisplay() (*sdl.Window, *sdl.Surface) {
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {

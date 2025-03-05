@@ -92,3 +92,58 @@ func (mon *PixelsIOBinding) Render(screen *[160][144][3]uint8) {
 func (mon *PixelsIOBinding) SetTitle(title string) {
 	mon.window.SetTitle(title)
 }
+
+func (mon *PixelsIOBinding) toggleFullscreen() {
+	if mon.window.Monitor() == nil {
+		monitor := pixelgl.PrimaryMonitor()
+		_, height := monitor.Size()
+		mon.window.SetMonitor(monitor)
+		displayScale = height / 144
+	} else {
+		mon.window.SetMonitor(nil)
+		displayScale = 3
+	}
+}
+
+var keyMap = map[pixelgl.Button]gb.Button{
+	pixelgl.KeyZ:         gb.ButtonA,
+	pixelgl.KeyX:         gb.ButtonB,
+	pixelgl.KeyBackspace: gb.ButtonSelect,
+	pixelgl.KeyEnter:     gb.ButtonStart,
+	pixelgl.KeyRight:     gb.ButtonRight,
+	pixelgl.KeyLeft:      gb.ButtonLeft,
+	pixelgl.KeyUp:        gb.ButtonUp,
+	pixelgl.KeyDown:      gb.ButtonDown,
+
+	pixelgl.KeyEscape: gb.ButtonPause,
+	pixelgl.KeyEqual:  gb.ButtonChangePallete,
+	pixelgl.KeyQ:      gb.ButtonToggleBackground,
+	pixelgl.KeyW:      gb.ButtonToggleSprites,
+	pixelgl.KeyE:      gb.ButttonToggleOutputOpCode,
+	pixelgl.KeyD:      gb.ButtonPrintBGMap,
+	pixelgl.Key7:      gb.ButtonToggleSoundChannel1,
+	pixelgl.Key8:      gb.ButtonToggleSoundChannel2,
+	pixelgl.Key9:      gb.ButtonToggleSoundChannel3,
+	pixelgl.Key0:      gb.ButtonToggleSoundChannel4,
+}
+
+// ProcessInput checks the input and process it.
+func (mon *PixelsIOBinding) ButtonInput() gb.ButtonInput {
+
+	if mon.window.JustPressed(pixelgl.KeyF) {
+		mon.toggleFullscreen()
+	}
+
+	var buttonInput gb.ButtonInput
+
+	for handledKey, button := range keyMap {
+		if mon.window.JustPressed(handledKey) {
+			buttonInput.Pressed = append(buttonInput.Pressed, button)
+		}
+		if mon.window.JustReleased(handledKey) {
+			buttonInput.Released = append(buttonInput.Released, button)
+		}
+	}
+
+	return buttonInput
+}
